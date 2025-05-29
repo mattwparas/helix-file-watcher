@@ -4,6 +4,8 @@
 (require "helix/misc.scm")
 (require "helix/ext.scm")
 
+(provide spawn-watcher)
+
 ;; Note, the below focus related functions are just vendored from mattwparas/helix-config
 
 ;; Last focused - will allow us to swap between the last view we were at
@@ -44,7 +46,7 @@
 
   (loop-events events))
 
-(define (spawn-watcher)
+(define (spawn-watcher [path "."])
   (spawn-native-thread (lambda ()
-                         (define events (watch-files "."))
+                         (define events (watch-files path))
                          (loop-events events))))
