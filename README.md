@@ -1,7 +1,7 @@
 # Helix file watcher plugin
 
 This is a helix plugin made using steel. To install, you can use the `forge` command line tool,
-which also required having a rust toolchain installed.
+which also requires having a rust toolchain installed.
 
 You can either clone the repo and then from the root run:
 
