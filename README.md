@@ -18,3 +18,9 @@ You should then be able to use the library like so:
 ```steel
 (require "helix-file-watcher/file-watcher.scm")
 ```
+
+To start the watcher on the current directory:
+
+```scheme
+(spawn-watcher)
+```
