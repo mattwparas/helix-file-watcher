@@ -551,6 +551,7 @@ dependencies = [
  "bitmaps",
  "rand_core 0.6.4",
  "rand_xoshiro",
+ "serde",
  "sized-chunks",
  "typenum",
  "version_check",
@@ -574,6 +575,7 @@ dependencies = [
  "bitmaps",
  "rand_core 0.6.4",
  "rand_xoshiro",
+ "serde",
  "sized-chunks",
  "typenum",
  "version_check",
@@ -1109,8 +1111,8 @@ checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 
 [[package]]
 name = "steel-core"
-version = "0.6.0"
-source = "git+https://github.com/mattwparas/steel.git#6237e35817e02fefdfd8dd2a54e584b677cb19c7"
+version = "0.7.0"
+source = "git+https://github.com/mattwparas/steel.git#790e1a95f560cb8d847a9e1709b1ba0f199f5980"
 dependencies = [
  "abi_stable",
  "arc-swap",
@@ -1159,8 +1161,8 @@ dependencies = [
 
 [[package]]
 name = "steel-derive"
-version = "0.5.0"
-source = "git+https://github.com/mattwparas/steel.git#6237e35817e02fefdfd8dd2a54e584b677cb19c7"
+version = "0.6.0"
+source = "git+https://github.com/mattwparas/steel.git#790e1a95f560cb8d847a9e1709b1ba0f199f5980"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1169,8 +1171,8 @@ dependencies = [
 
 [[package]]
 name = "steel-gen"
-version = "0.2.0"
-source = "git+https://github.com/mattwparas/steel.git#6237e35817e02fefdfd8dd2a54e584b677cb19c7"
+version = "0.3.0"
+source = "git+https://github.com/mattwparas/steel.git#790e1a95f560cb8d847a9e1709b1ba0f199f5980"
 dependencies = [
  "codegen",
  "serde",
@@ -1178,8 +1180,8 @@ dependencies = [
 
 [[package]]
 name = "steel-parser"
-version = "0.6.0"
-source = "git+https://github.com/mattwparas/steel.git#6237e35817e02fefdfd8dd2a54e584b677cb19c7"
+version = "0.7.0"
+source = "git+https://github.com/mattwparas/steel.git#790e1a95f560cb8d847a9e1709b1ba0f199f5980"
 dependencies = [
  "compact_str",
  "fxhash",
