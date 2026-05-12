@@ -8,7 +8,9 @@
 
 (provide spawn-watcher)
 
-(define global-watcher (make-empty-watcher))
+(define _watcher-pair (make-empty-watcher))
+(define watch-handle (list-ref _watcher-pair 0))
+(define event-handle (list-ref _watcher-pair 1))
 
 (define (all-open-files)
   (~>> (editor-all-documents)
@@ -44,7 +46,7 @@
       (thunk))))
 
 (define (loop-events delay-ms)
-  (define next-event (receive-event! global-watcher))
+  (define next-event (receive-event! event-handle))
   (with-handler
    (lambda (err)
      (log::info! (to-string "err" err))
@@ -66,7 +68,7 @@
    (loop-events delay-ms)))
 
 (define (set-watch-files paths)
-  (for-each (lambda (x) (watch-file! global-watcher x)) paths))
+  (for-each (lambda (x) (watch-file! watch-handle x)) paths))
 
 (define *started* #f)
 
