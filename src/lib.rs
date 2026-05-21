@@ -1,9 +1,8 @@
 use std::{
-    error::Error,
-    path::{Path, PathBuf},
+    path::PathBuf,
     sync::{
+        mpsc::{channel, Receiver},
         Mutex,
-        mpsc::{Receiver, RecvError, Sender},
     },
 };
 
@@ -21,50 +20,48 @@ fn file_watcher_module() -> FFIModule {
 
     module
         .register_fn("watch-files", watch_files)
-        .register_fn("receive-event!", EventReceiver::recv)
+        .register_fn("receive-event!", EventHandle::recv)
         .register_fn("event-paths", NotifyEvent::paths)
         .register_fn("event-kind", NotifyEvent::kind)
         .register_fn("make-empty-watcher", spawn_empty_watcher)
-        .register_fn("watch-file!", EventReceiver::watch_file)
-        .register_fn("unwatch-file!", EventReceiver::unwatch_file);
+        .register_fn("watch-file!", WatchHandle::watch_file)
+        .register_fn("unwatch-file!", WatchHandle::unwatch_file);
 
     module
 }
 
-struct EventReceiver {
-    _watcher: RecommendedWatcher,
-    receiver: Mutex<Receiver<Event>>,
-}
+struct WatchHandle(Mutex<RecommendedWatcher>);
+struct EventHandle(Mutex<Receiver<Event>>);
 struct NotifyEvent(Event);
 
-impl Custom for EventReceiver {}
+impl Custom for WatchHandle {}
+impl Custom for EventHandle {}
 impl Custom for NotifyEvent {}
 
-impl EventReceiver {
-    fn recv(&mut self) -> RResult<FFIValue, RBoxError> {
-        let res = self
-            .receiver
+impl WatchHandle {
+    fn watch_file(&self, path: String) {
+        self.0
+            .lock()
+            .unwrap()
+            .watch(&PathBuf::from(path), RecursiveMode::NonRecursive)
+            .ok();
+    }
+
+    fn unwatch_file(&self, path: String) {
+        self.0.lock().unwrap().unwatch(&PathBuf::from(path)).ok();
+    }
+}
+
+impl EventHandle {
+    fn recv(&self) -> RResult<FFIValue, RBoxError> {
+        self.0
             .lock()
             .unwrap()
             .recv()
             .map(NotifyEvent)
             .map(|x| x.into_ffi_val().unwrap())
-            .map_err(|x| RBoxError::new(x));
-
-        match res {
-            Ok(ok) => RResult::ROk(ok),
-            Err(err) => RResult::RErr(err),
-        }
-    }
-
-    fn watch_file(&mut self, path: &str) {
-        self._watcher
-            .watch(&PathBuf::from(path), RecursiveMode::NonRecursive)
-            .ok();
-    }
-
-    fn unwatch_file(&mut self, path: &str) {
-        self._watcher.unwatch(&PathBuf::from(path)).ok();
+            .map_err(RBoxError::new)
+            .into()
     }
 }
 
@@ -90,48 +87,44 @@ impl NotifyEvent {
     }
 }
 
-fn spawn_empty_watcher() -> FFIValue {
-    let (sender, receiver) = std::sync::mpsc::channel();
-
-    let watcher = notify::recommended_watcher(move |event: Result<Event, _>| {
-        if let Ok(event) = event {
-            if let notify::EventKind::Modify(_) = &event.kind {
-                sender.send(event).unwrap();
-            }
-        }
-    })
-    .unwrap();
-
-    EventReceiver {
-        _watcher: watcher,
-        receiver: Mutex::new(receiver),
-    }
-    .into_ffi_val()
-    .unwrap()
-}
-
-fn watch_files(path: String) -> FFIValue {
-    let (sender, receiver) = std::sync::mpsc::channel();
+fn make_pair(initial: Option<(PathBuf, RecursiveMode)>) -> FFIValue {
+    let (event_tx, event_rx) = channel::<Event>();
 
     let mut watcher = notify::recommended_watcher(move |event: Result<Event, _>| {
         if let Ok(event) = event {
             if let notify::EventKind::Modify(_) = &event.kind {
-                sender.send(event).unwrap();
+                let _ = event_tx.send(event);
             }
         }
     })
-    .unwrap();
+    .expect("failed to construct notify watcher");
 
-    let path = PathBuf::from(path.clone());
-
-    watcher.watch(&path, RecursiveMode::Recursive).unwrap();
-
-    EventReceiver {
-        _watcher: watcher,
-        receiver: Mutex::new(receiver),
+    if let Some((path, mode)) = initial {
+        let _ = watcher.watch(&path, mode);
     }
-    .into_ffi_val()
-    .unwrap()
+
+    let watch_handle = WatchHandle(Mutex::new(watcher));
+    let event_handle = EventHandle(Mutex::new(event_rx));
+
+    let v: RVec<FFIValue> = [
+        watch_handle
+            .into_ffi_val()
+            .expect("WatchHandle into_ffi_val"),
+        event_handle
+            .into_ffi_val()
+            .expect("EventHandle into_ffi_val"),
+    ]
+    .into_iter()
+    .collect();
+    FFIValue::Vector(v)
+}
+
+fn spawn_empty_watcher() -> FFIValue {
+    make_pair(None)
+}
+
+fn watch_files(path: String) -> FFIValue {
+    make_pair(Some((PathBuf::from(path), RecursiveMode::Recursive)))
 }
 
 pub fn build_module() -> FFIModule {
