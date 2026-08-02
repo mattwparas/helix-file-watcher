@@ -34,16 +34,15 @@
 ;; reload file only if the write time isn't the same as it is for helix
 (define (maybe-reload x [thunk #f])
   (define doc-id (path->doc-id x))
-  (define helix-doc-last-saved (editor-document-last-saved doc-id))
-  (define file-last-modified (fs-metadata-modified (file-metadata x)))
-  (define now (system-time/now))
-
-  ;; Racing helix... no good
-  (when (system-time<? helix-doc-last-saved file-last-modified)
-    (log::info! (to-string "reloading file: " x))
-    (editor-document-reload doc-id)
-    (when thunk
-      (thunk))))
+  (when doc-id
+    (define helix-doc-last-saved (editor-document-last-saved doc-id))
+    (define file-last-modified (fs-metadata-modified (file-metadata x)))
+    ;; Racing helix... no good
+    (when (and helix-doc-last-saved (system-time<? helix-doc-last-saved file-last-modified))
+      (log::info! (to-string "reloading file: " x))
+      (editor-document-reload doc-id)
+      (when thunk
+        (thunk)))))
 
 (define (loop-events delay-ms)
   (define next-event (receive-event! event-handle))
