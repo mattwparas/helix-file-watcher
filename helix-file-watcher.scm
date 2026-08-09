@@ -1,17 +1,19 @@
 (#%require-dylib "libhelix_file_watcher" (only-in
+    drain-event-paths!
     event-kind
     event-paths
     make-empty-watcher
-    receive-event!
+    try-receive-event!
     unwatch-file!
     watch-file!
     watch-files
 ))
 (provide 
+    drain-event-paths!
     event-kind
     event-paths
     make-empty-watcher
-    receive-event!
+    try-receive-event!
     unwatch-file!
     watch-file!
     watch-files

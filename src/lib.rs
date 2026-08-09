@@ -1,7 +1,8 @@
 use std::{
+    collections::HashSet,
     path::PathBuf,
     sync::{
-        mpsc::{channel, Receiver},
+        mpsc::{channel, Receiver, TryRecvError},
         Mutex,
     },
 };
@@ -20,7 +21,8 @@ fn file_watcher_module() -> FFIModule {
 
     module
         .register_fn("watch-files", watch_files)
-        .register_fn("receive-event!", EventHandle::recv)
+        .register_fn("try-receive-event!", EventHandle::try_recv)
+        .register_fn("drain-event-paths!", EventHandle::drain_paths)
         .register_fn("event-paths", NotifyEvent::paths)
         .register_fn("event-kind", NotifyEvent::kind)
         .register_fn("make-empty-watcher", spawn_empty_watcher)
@@ -53,15 +55,43 @@ impl WatchHandle {
 }
 
 impl EventHandle {
-    fn recv(&self) -> RResult<FFIValue, RBoxError> {
-        self.0
-            .lock()
-            .unwrap()
-            .recv()
-            .map(NotifyEvent)
-            .map(|x| x.into_ffi_val().unwrap())
-            .map_err(RBoxError::new)
-            .into()
+    fn try_recv(&self) -> RResult<FFIValue, RBoxError> {
+        match self.0.lock().unwrap().try_recv() {
+            Ok(event) => RResult::ROk(NotifyEvent(event).into_ffi_val().unwrap()),
+            Err(TryRecvError::Empty) => RResult::ROk(FFIValue::BoolV(false)),
+            Err(err @ TryRecvError::Disconnected) => RResult::RErr(RBoxError::new(err)),
+        }
+    }
+
+    fn drain_paths(&self) -> RResult<FFIValue, RBoxError> {
+        let receiver = self.0.lock().unwrap();
+
+        let mut seen = HashSet::new();
+        let mut paths = RVec::new();
+
+        loop {
+            match receiver.try_recv() {
+                Ok(event) => {
+                    for path in event.paths {
+                        if let Some(path) = path.as_os_str().to_str() {
+                            if seen.insert(path.to_owned()) {
+                                paths.push(FFIValue::StringV(RString::from(path)));
+                            }
+                        }
+                    }
+                }
+                Err(TryRecvError::Empty) => break,
+                Err(err @ TryRecvError::Disconnected) => {
+                    if paths.is_empty() {
+                        return RResult::RErr(RBoxError::new(err));
+                    }
+
+                    break;
+                }
+            }
+        }
+
+        RResult::ROk(FFIValue::Vector(paths))
     }
 }
 

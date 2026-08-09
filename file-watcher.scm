@@ -44,27 +44,42 @@
       (when thunk
         (thunk)))))
 
-(define (loop-events delay-ms)
-  (define next-event (receive-event! event-handle))
+(define *min-poll-ms* 50)
+(define *max-poll-ms* 500)
+
+(define (poll-paths)
+  (with-handler (lambda (err)
+                  (log::info! (to-string "file watcher: event channel closed: " err))
+                  #f)
+                (drain-event-paths! event-handle)))
+
+(define (handle-changed-paths paths delay-ms)
   (with-handler
-   (lambda (err)
-     (log::info! (to-string "err" err))
-     (loop-events delay-ms))
-   (define paths (map try-canonicalize-path (event-paths next-event)))
-   (define open-buffers (map try-canonicalize-path (hx.block-on-task (lambda () (all-open-files)))))
+   (lambda (err) (log::info! (to-string "file watcher: " err)))
+   (define changed (filter id (map try-canonicalize-path paths)))
+   (define open-buffers (hx.block-on-task (lambda () (all-open-files))))
    ;; Lots of allocation!
    (define intersection
-     (filter (lambda (x) x)
-             (hashset->list (hashset-intersection (list->hashset paths)
-                                                  (list->hashset open-buffers)))))
+     (hashset->list (hashset-intersection (list->hashset changed) (list->hashset open-buffers))))
    (unless (empty? intersection)
      (hx.with-context (lambda ()
                         ;; Give helix like, 5 seconds to make an edit before deciding to update
                         ;; Enqueue a callback with a delay, without blocking the thread.
                         (enqueue-thread-local-callback-with-delay
                          delay-ms
-                         (lambda () (for-each maybe-reload intersection))))))
-   (loop-events delay-ms)))
+                         (lambda () (for-each maybe-reload intersection))))))))
+
+(define (loop-events delay-ms)
+  (let loop ([poll-ms *min-poll-ms*])
+    (define paths (poll-paths))
+    (cond
+      [(not paths) (log::info! "file watcher: shutting down event loop")]
+      [(empty? paths)
+       (time/sleep-ms poll-ms)
+       (loop (min (* 2 poll-ms) *max-poll-ms*))]
+      [else
+       (handle-changed-paths paths delay-ms)
+       (loop *min-poll-ms*)])))
 
 (define (set-watch-files paths)
   (for-each (lambda (x) (watch-file! watch-handle x)) paths))
